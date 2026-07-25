@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Kronos Ledger</title>
+<style>
+  :root {
+    color-scheme: light;
+    --paper: #fcfcfb; --plane: #f9f9f7;
+    --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --axis: #c3c2b7; --ring: rgba(11,11,11,.10);
+    --s-blue: #2a78d6; --s-orange: #eb6834; --s-aqua: #1baf7a; --s-red: #e34948;
+    --good: #0ca30c; --critical: #d03b3b;
+    --band-fill: rgba(27,175,122,.14); --boll-fill: rgba(137,135,129,.12);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --paper: #1a1a19; --plane: #0d0d0d;
+      --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,.10);
+      --s-blue: #3987e5; --s-orange: #d95926; --s-aqua: #199e70; --s-red: #e66767;
+      --band-fill: rgba(25,158,112,.20); --boll-fill: rgba(137,135,129,.16);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --paper: #1a1a19; --plane: #0d0d0d;
+    --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,.10);
+    --s-blue: #3987e5; --s-orange: #d95926; --s-aqua: #199e70; --s-red: #e66767;
+    --band-fill: rgba(25,158,112,.20); --boll-fill: rgba(137,135,129,.16);
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--plane); color: var(--ink);
+    font: 15px/1.55 Georgia, "Times New Roman", serif;
+    padding: 24px 12px;
+  }
+  .sheet {
+    max-width: 980px; margin: 0 auto; background: var(--paper);
+    border: 1px solid var(--ring); padding: 28px 32px 20px;
+  }
+  .sans, svg text, .tile, .legend, .tooltip, .badge, .kicker, .meta, td.num, th {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  /* masthead */
+  .rule { border: 0; border-top: 1px solid var(--ink); margin: 6px 0; }
+  .rule.thick { border-top-width: 3px; }
+  .masthead { text-align: center; }
+  .masthead h1 { font-size: clamp(30px, 6vw, 52px); letter-spacing: .04em; font-weight: 700; }
+  .meta { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+          font-size: 11.5px; color: var(--ink-2); text-transform: uppercase;
+          letter-spacing: .08em; padding: 4px 0; }
+  .headline { display: flex; justify-content: space-between; align-items: baseline;
+              gap: 16px; flex-wrap: wrap; margin: 18px 0 4px; }
+  .headline h2 { font-size: clamp(22px, 4vw, 34px); }
+  .headline .price { font-size: clamp(20px, 3.4vw, 30px); font-weight: 700; }
+  .badge { display: inline-flex; align-items: center; gap: 7px; font-weight: 700;
+           font-size: 15px; letter-spacing: .06em; padding: 5px 14px;
+           border: 2px solid currentColor; }
+  .badge.BUY { color: var(--good); } .badge.SELL { color: var(--critical); }
+  .badge.HOLD { color: var(--ink-2); }
+  .kicker { font-size: 11px; text-transform: uppercase; letter-spacing: .14em;
+            color: var(--muted); margin: 22px 0 6px; }
+  .demo-note { background: var(--boll-fill); border: 1px dashed var(--axis);
+               font-size: 12.5px; padding: 6px 10px; margin-top: 10px; color: var(--ink-2); }
+  /* tiles */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+           gap: 10px; margin: 10px 0 4px; }
+  .tile { border: 1px solid var(--ring); padding: 9px 11px; }
+  .tile .lbl { font-size: 10.5px; text-transform: uppercase; letter-spacing: .1em;
+               color: var(--muted); }
+  .tile .val { font-size: 19px; font-weight: 650; margin-top: 2px; }
+  .tile .sub { font-size: 11.5px; color: var(--ink-2); }
+  /* charts */
+  .chart { position: relative; margin: 6px 0 2px; }
+  .chart svg { display: block; width: 100%; height: auto; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11.5px;
+            color: var(--ink-2); margin: 4px 0 2px; }
+  .legend .chip { display: inline-block; width: 10px; height: 10px; border-radius: 2px;
+                  margin-right: 5px; vertical-align: -1px; }
+  .tooltip { position: absolute; pointer-events: none; background: var(--paper);
+             border: 1px solid var(--axis); box-shadow: 0 2px 8px rgba(0,0,0,.12);
+             font-size: 11.5px; line-height: 1.5; padding: 6px 9px; display: none;
+             white-space: nowrap; z-index: 5; color: var(--ink); }
+  .tooltip b { font-weight: 650; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  @media (max-width: 720px) { .grid2 { grid-template-columns: 1fr; } }
+  /* fundamentals table */
+  .tablewrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { text-align: left; padding: 4px 8px 4px 0; border-bottom: 1px solid var(--grid); }
+  th { font-size: 10.5px; text-transform: uppercase; letter-spacing: .09em;
+       color: var(--muted); font-weight: 600; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  /* news + reasons */
+  .news li, .reasons li { margin: 6px 0 6px 0; }
+  .news .src { color: var(--muted); font-size: 12px; font-family: system-ui, sans-serif; }
+  .reasons { padding-left: 20px; }
+  .news { padding-left: 20px; }
+  .foot { font-size: 11.5px; color: var(--muted); margin-top: 18px;
+          text-align: center; font-family: system-ui, sans-serif; }
+  .nodata { color: var(--muted); font-size: 13px; font-style: italic; }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <header class="masthead">
+    <hr class="rule thick">
+    <h1>THE KRONOS LEDGER</h1>
+    <hr class="rule">
+    <div class="meta">
+      <span id="m-date"></span>
+      <span>Research workflow only — not financial advice</span>
+      <span id="m-src"></span>
+    </div>
+    <hr class="rule thick">
+  </header>
+
+  <div class="headline">
+    <h2 id="h-ticker"></h2>
+    <span class="price" id="h-price"></span>
+    <span class="badge" id="h-badge"></span>
+  </div>
+  <div id="demo-note"></div>
+
+  <div class="kicker">Kronos forecast</div>
+  <div id="forecast-block"></div>
+
+  <div class="kicker">At a glance</div>
+  <div class="tiles" id="tiles"></div>
+
+  <div class="kicker">Technicals dashboard</div>
+  <div id="price-block"></div>
+  <div class="grid2">
+    <div id="rsi-block"></div>
+    <div id="macd-block"></div>
+  </div>
+  <div id="vol-block"></div>
+
+  <div class="grid2" style="margin-top:8px">
+    <section>
+      <div class="kicker">Fundamentals — SEC EDGAR</div>
+      <div id="fundamentals"></div>
+    </section>
+    <section>
+      <div class="kicker">News cycle</div>
+      <div id="news"></div>
+    </section>
+  </div>
+
+  <div class="kicker">The house call</div>
+  <div id="call-block"></div>
+
+  <hr class="rule" style="margin-top:20px">
+  <div class="foot">
+    Built with the Kronos open-source foundation model (MIT) · Technicals computed locally ·
+    Fundamentals from SEC EDGAR · The house call is a transparent rule score, not advice.
+    Stocks carry real risk.
+  </div>
+</div>
+
+<script id="tearsheet-data" type="application/json">__TEARSHEET_DATA__</script>
+<script>
+"use strict";
+const T = JSON.parse(document.getElementById("tearsheet-data").textContent);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const $ = id => document.getElementById(id);
+const fmt$ = v => v == null ? "—" : "$" + v.toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+const fmtBig = v => {
+  if (v == null) return "—";
+  const a = Math.abs(v);
+  if (a >= 1e9) return "$" + (v / 1e9).toFixed(1) + "B";
+  if (a >= 1e6) return "$" + (v / 1e6).toFixed(1) + "M";
+  return "$" + v.toLocaleString("en-US");
+};
+
+const rows = T.ohlcv, closes = rows.map(r => r.close), n = rows.length;
+const last = rows[n - 1], tech = T.technicals, fc = T.forecast, call = T.house_call;
+
+/* ---------- header ---------- */
+$("m-date").textContent = T.generated;
+$("m-src").textContent = `${T.period} of ${T.interval} candles`;
+$("h-ticker").textContent = T.ticker + (T.fundamentals && T.fundamentals.name ? " — " + T.fundamentals.name : "");
+$("h-price").textContent = fmt$(last.close);
+const badge = $("h-badge");
+badge.classList.add(call.call);
+badge.textContent = (call.call === "BUY" ? "▲ " : call.call === "SELL" ? "▼ " : "● ") + call.call;
+if (T.demo) $("demo-note").innerHTML =
+  '<div class="demo-note">DEMO MODE — every number on this page is synthetic sample data.</div>';
+
+/* ---------- chart factory ---------- */
+const W = 940;
+function makeChart(mount, series, opts) {
+  // series: [{name, color, values:[{t, y}], type:'line'|'bar'|'area-band'(y2), width}]
+  const H = opts.height || 260, padL = 52, padR = 14, padT = 12, padB = 24;
+  const iw = W - padL - padR, ih = H - padT - padB;
+  const allT = opts.domainT;
+  const xi = t => allT.indexOf(t);
+  let lo = Infinity, hi = -Infinity;
+  for (const s of series) for (const p of s.values) {
+    if (p.y == null) continue;
+    lo = Math.min(lo, p.y, p.y2 ?? p.y); hi = Math.max(hi, p.y, p.y2 ?? p.y);
+  }
+  if (opts.min != null) lo = opts.min;
+  if (opts.max != null) hi = opts.max;
+  const pad = (hi - lo) * 0.06 || 1; if (opts.min == null) lo -= pad; if (opts.max == null) hi += pad;
+  const X = t => padL + (xi(t) / Math.max(1, allT.length - 1)) * iw;
+  const Y = v => padT + (1 - (v - lo) / (hi - lo)) * ih;
+
+  const el = [];
+  el.push(`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${opts.label || ""}">`);
+  // gridlines + y ticks
+  const ticks = 4;
+  for (let i = 0; i <= ticks; i++) {
+    const v = lo + (hi - lo) * i / ticks, y = Y(v);
+    el.push(`<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" style="stroke:var(--grid)" stroke-width="1"/>`);
+    el.push(`<text x="${padL - 6}" y="${y + 3.5}" text-anchor="end" font-size="10" style="fill:var(--muted)">${opts.yfmt ? opts.yfmt(v) : v.toFixed(0)}</text>`);
+  }
+  // x labels: ~5 evenly spaced dates
+  for (let i = 0; i < 5; i++) {
+    const idx = Math.round(i * (allT.length - 1) / 4);
+    const anchor = i === 0 ? "start" : i === 4 ? "end" : "middle";
+    el.push(`<text x="${padL + idx / Math.max(1, allT.length - 1) * iw}" y="${H - 6}" text-anchor="${anchor}" font-size="10" style="fill:var(--muted)">${allT[idx].slice(0, 7)}</text>`);
+  }
+  el.push(`<line x1="${padL}" y1="${padT + ih}" x2="${W - padR}" y2="${padT + ih}" style="stroke:var(--axis)" stroke-width="1"/>`);
+  if (opts.guides) for (const g of opts.guides)
+    el.push(`<line x1="${padL}" y1="${Y(g)}" x2="${W - padR}" y2="${Y(g)}" style="stroke:var(--axis)" stroke-width="1" stroke-dasharray="4 4"/>`);
+  if (opts.divider != null) {
+    const dx = X(opts.divider);
+    el.push(`<line x1="${dx}" y1="${padT}" x2="${dx}" y2="${padT + ih}" style="stroke:var(--axis)" stroke-width="1" stroke-dasharray="2 3"/>`);
+    el.push(`<text x="${dx + 4}" y="${padT + 10}" font-size="10" style="fill:var(--muted)">today</text>`);
+  }
+  for (const s of series) {
+    const pts = s.values.filter(p => p.y != null);
+    if (s.type === "area-band") {
+      const up = pts.map(p => `${X(p.t).toFixed(1)},${Y(p.y2).toFixed(1)}`);
+      const dn = pts.slice().reverse().map(p => `${X(p.t).toFixed(1)},${Y(p.y).toFixed(1)}`);
+      el.push(`<polygon points="${up.join(" ")} ${dn.join(" ")}" style="fill:${s.color}" stroke="none"/>`);
+    } else if (s.type === "bar") {
+      const bw = Math.max(1, iw / allT.length - 2);
+      for (const p of pts) {
+        const y0 = Y(Math.max(0, lo)), y1 = Y(p.y);
+        const top = Math.min(y0, y1), h = Math.max(1, Math.abs(y0 - y1));
+        el.push(`<rect x="${(X(p.t) - bw / 2).toFixed(1)}" y="${top.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="1" style="fill:${p.color || s.color}"/>`);
+      }
+    } else {
+      const d = pts.map((p, i) => `${i ? "L" : "M"}${X(p.t).toFixed(1)} ${Y(p.y).toFixed(1)}`).join(" ");
+      el.push(`<path d="${d}" fill="none" style="stroke:${s.color}" stroke-width="${s.width || 2}" ${s.dash ? `stroke-dasharray="${s.dash}"` : ""} stroke-linejoin="round" stroke-linecap="round"/>`);
+    }
+  }
+  el.push(`<line class="xhair" x1="0" y1="${padT}" x2="0" y2="${padT + ih}" stroke-width="1" style="display:none;stroke:var(--ink-2)"/>`);
+  el.push(`</svg>`);
+
+  const wrap = document.createElement("div");
+  wrap.className = "chart";
+  wrap.innerHTML = el.join("");
+  const tip = document.createElement("div");
+  tip.className = "tooltip";
+  wrap.appendChild(tip);
+  mount.appendChild(wrap);
+
+  // legend (only when ≥ 2 named series)
+  const named = series.filter(s => s.name);
+  if (named.length >= 2) {
+    const lg = document.createElement("div");
+    lg.className = "legend";
+    lg.innerHTML = named.map(s => `<span><span class="chip" style="background:${s.color}"></span>${s.name}</span>`).join("");
+    mount.appendChild(lg);
+  }
+
+  // crosshair + tooltip
+  const svg = wrap.querySelector("svg"), xhair = wrap.querySelector(".xhair");
+  svg.addEventListener("mousemove", ev => {
+    const r = svg.getBoundingClientRect();
+    const fx = (ev.clientX - r.left) / r.width * W;
+    if (fx < padL || fx > W - padR) { tip.style.display = "none"; xhair.style.display = "none"; return; }
+    const idx = Math.round((fx - padL) / iw * (allT.length - 1));
+    const t = allT[Math.max(0, Math.min(allT.length - 1, idx))];
+    const px = X(t);
+    xhair.setAttribute("x1", px); xhair.setAttribute("x2", px); xhair.style.display = "";
+    const linesOut = [`<b>${t}</b>`];
+    for (const s of series) {
+      if (!s.name) continue;
+      const p = s.values.find(v => v.t === t);
+      if (p && p.y != null)
+        linesOut.push(`<span class="chip" style="background:${s.color};display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px"></span>${s.name}: <b>${(opts.yfmt || (x => x.toFixed(2)))(p.y)}${p.y2 != null ? "–" + (opts.yfmt || (x => x.toFixed(2)))(p.y2) : ""}</b>`);
+    }
+    tip.innerHTML = linesOut.join("<br>");
+    tip.style.display = "block";
+    const rx = px / W * r.width;
+    tip.style.left = Math.min(r.width - tip.offsetWidth - 8, rx + 12) + "px";
+    tip.style.top = "12px";
+  });
+  svg.addEventListener("mouseleave", () => { tip.style.display = "none"; xhair.style.display = "none"; });
+}
+
+/* ---------- forecast chart ---------- */
+(function () {
+  const mount = $("forecast-block");
+  if (!fc) {
+    mount.innerHTML = '<p class="nodata">No Kronos forecast attached. Run the skill with ' +
+      'KRONOS_JSON_OUT=forecast.json and pass --forecast to the generator.</p>';
+    return;
+  }
+  const tail = rows.slice(-90);
+  const domainT = tail.map(r => r.t).concat(fc.path.map(r => r.t));
+  const p = document.createElement("p");
+  p.style.fontSize = "13.5px";
+  p.innerHTML = `Kronos calls <b>${fc.direction} ${fc.pct_change > 0 ? "+" : ""}${fc.pct_change}%</b> over the next ` +
+    `${fc.pred_len} × ${fc.interval} candles (predicted close ${fmt$(fc.pred_close)}). ` +
+    `Confidence band: <b>${fc.band}</b> — forecast range ${fmt$(fc.band_low)}–${fmt$(fc.band_high)} ` +
+    `(±${fc.band_width_pct}% of last close). ` +
+    (fc.band === "WIDE" ? "Wide band = the model is hedging. Treat this as noise."
+      : fc.band === "NARROW" ? "Narrow band = signal worth investigating. Confirm on a second timeframe."
+      : "Moderate band = context only, check other timeframes.");
+  mount.appendChild(p);
+  makeChart(mount, [
+    { name: "Forecast band", color: "var(--band-fill)", type: "area-band",
+      values: fc.path.map(r => ({ t: r.t, y: fc.band_low, y2: fc.band_high })) },
+    { name: "Close", color: "var(--ink)", values: tail.map(r => ({ t: r.t, y: r.close })) },
+    { name: "Kronos forecast", color: "var(--s-aqua)", width: 2.5,
+      values: [{ t: tail[tail.length - 1].t, y: tail[tail.length - 1].close }]
+        .concat(fc.path.map(r => ({ t: r.t, y: r.close }))) },
+  ], { domainT, height: 280, yfmt: fmt$, divider: tail[tail.length - 1].t, label: "Kronos forecast chart" });
+})();
+
+/* ---------- tiles ---------- */
+(function () {
+  const rsiV = tech.rsi[n - 1], mh = tech.macd_hist[n - 1], atrV = tech.atr[n - 1];
+  const s200 = tech.sma200[n - 1], s50 = tech.sma50[n - 1];
+  const chg = (last.close - rows[n - 2].close) / rows[n - 2].close * 100;
+  const tiles = [
+    ["Last close", fmt$(last.close), `${chg >= 0 ? "+" : ""}${chg.toFixed(2)}% on the day`],
+    ["Kronos call", fc ? `${fc.direction} ${fc.pct_change > 0 ? "+" : ""}${fc.pct_change}%` : "—",
+      fc ? `${fc.band} band ±${fc.band_width_pct}%` : "no forecast attached"],
+    ["RSI (14)", rsiV == null ? "—" : rsiV.toFixed(0),
+      rsiV == null ? "" : rsiV > 70 ? "overbought" : rsiV < 30 ? "oversold" : "neutral"],
+    ["MACD hist", mh == null ? "—" : mh.toFixed(2), mh == null ? "" : mh > 0 ? "momentum: buyers" : "momentum: sellers"],
+    ["vs SMA 200", s200 == null ? "—" : `${((last.close - s200) / s200 * 100).toFixed(1)}%`,
+      s200 == null ? "needs 200 candles" : last.close > s200 ? "above long-term trend" : "below long-term trend"],
+    ["ATR (14)", atrV == null ? "—" : fmt$(atrV),
+      atrV == null ? "" : `${(atrV / last.close * 100).toFixed(1)}% daily range`],
+  ];
+  $("tiles").innerHTML = tiles.map(([l, v, s]) =>
+    `<div class="tile"><div class="lbl">${l}</div><div class="val">${v}</div><div class="sub">${s}</div></div>`).join("");
+})();
+
+/* ---------- price + overlays ---------- */
+(function () {
+  const domainT = rows.map(r => r.t);
+  makeChart($("price-block"), [
+    { name: "Bollinger (20, 2σ)", color: "var(--boll-fill)", type: "area-band",
+      values: rows.map((r, i) => ({ t: r.t, y: tech.boll_lo[i], y2: tech.boll_up[i] }))
+        .filter(p => p.y != null) },
+    { name: "Close", color: "var(--ink)", values: rows.map(r => ({ t: r.t, y: r.close })) },
+    { name: "SMA 50", color: "var(--s-blue)", values: rows.map((r, i) => ({ t: r.t, y: tech.sma50[i] })) },
+    { name: "SMA 200", color: "var(--s-orange)", values: rows.map((r, i) => ({ t: r.t, y: tech.sma200[i] })) },
+  ], { domainT, height: 280, yfmt: fmt$, label: "Price with SMA and Bollinger overlays" });
+})();
+
+/* ---------- RSI ---------- */
+(function () {
+  const mount = $("rsi-block");
+  mount.innerHTML = '<div class="kicker" style="margin-top:8px">RSI (14)</div>';
+  makeChart(mount, [
+    { name: "RSI", color: "var(--s-blue)", values: rows.map((r, i) => ({ t: r.t, y: tech.rsi[i] })) },
+  ], { domainT: rows.map(r => r.t), height: 170, min: 0, max: 100, guides: [30, 70],
+       yfmt: v => v.toFixed(0), label: "RSI panel" });
+})();
+
+/* ---------- MACD ---------- */
+(function () {
+  const mount = $("macd-block");
+  mount.innerHTML = '<div class="kicker" style="margin-top:8px">MACD (12, 26, 9)</div>';
+  makeChart(mount, [
+    { name: "Histogram", type: "bar", color: "var(--s-blue)",
+      values: rows.map((r, i) => ({ t: r.t, y: tech.macd_hist[i],
+        color: (tech.macd_hist[i] ?? 0) >= 0 ? "var(--s-blue)" : "var(--s-red)" })) },
+    { name: "MACD", color: "var(--ink)", width: 1.6, values: rows.map((r, i) => ({ t: r.t, y: tech.macd[i] })) },
+    { name: "Signal", color: "var(--s-orange)", width: 1.6, dash: "5 3",
+      values: rows.map((r, i) => ({ t: r.t, y: tech.macd_signal[i] })) },
+  ], { domainT: rows.map(r => r.t), height: 170, yfmt: v => v.toFixed(1), label: "MACD panel" });
+})();
+
+/* ---------- volume ---------- */
+(function () {
+  const mount = $("vol-block");
+  mount.innerHTML = '<div class="kicker" style="margin-top:8px">Volume</div>';
+  makeChart(mount, [
+    { name: "Volume", type: "bar", color: "var(--axis)",
+      values: rows.map(r => ({ t: r.t, y: r.volume })) },
+  ], { domainT: rows.map(r => r.t), height: 130, min: 0,
+       yfmt: v => v >= 1e9 ? (v / 1e9).toFixed(1) + "B" : v >= 1e6 ? (v / 1e6).toFixed(0) + "M" : v.toFixed(0),
+       label: "Volume panel" });
+})();
+
+/* ---------- fundamentals ---------- */
+(function () {
+  const f = T.fundamentals, mount = $("fundamentals");
+  if (!f) {
+    mount.innerHTML = '<p class="nodata">No EDGAR fundamentals (ETF, crypto, foreign filer, or fetch failed).</p>';
+    return;
+  }
+  const labels = Object.keys((f.annual && f.annual.values) || (f.quarterly && f.quarterly.values) || {});
+  const cell = (blk, l) => blk && blk.values && blk.values[l] != null
+    ? (l === "Diluted EPS" ? "$" + blk.values[l].toFixed(2) : fmtBig(blk.values[l])) : "—";
+  mount.innerHTML = `<div class="tablewrap"><table>
+    <tr><th></th><th class="num">10-K ${f.annual && f.annual.period ? "(" + f.annual.period + ")" : ""}</th>
+    <th class="num">10-Q ${f.quarterly && f.quarterly.period ? "(" + f.quarterly.period + ")" : ""}</th></tr>
+    ${labels.map(l => `<tr><td>${l}</td><td class="num">${cell(f.annual, l)}</td><td class="num">${cell(f.quarterly, l)}</td></tr>`).join("")}
+  </table></div>
+  <p style="font-size:11.5px;color:var(--muted);margin-top:6px">Source: ${f.source}${f.cik ? " · CIK " + f.cik : ""}</p>`;
+})();
+
+/* ---------- news ---------- */
+(function () {
+  const mount = $("news");
+  if (!T.news || !T.news.length) {
+    mount.innerHTML = '<p class="nodata">No news items fetched.</p>';
+    return;
+  }
+  mount.innerHTML = '<ul class="news">' + T.news.map(nw =>
+    `<li>${nw.url ? `<a href="${nw.url}" style="color:inherit">${nw.title}</a>` : nw.title}
+     <div class="src">${[nw.publisher, nw.date].filter(Boolean).join(" · ")}</div></li>`).join("") + "</ul>";
+})();
+
+/* ---------- house call ---------- */
+(function () {
+  $("call-block").innerHTML =
+    `<p style="font-size:15px"><span class="badge ${call.call}" style="font-size:13px">` +
+    `${call.call === "BUY" ? "▲" : call.call === "SELL" ? "▼" : "●"} ${call.call}</span>
+     &nbsp;Rule score: <b>${call.score > 0 ? "+" : ""}${call.score}</b></p>
+     <ul class="reasons">${call.reasons.map(r => `<li>${r}</li>`).join("")}</ul>
+     <p style="font-size:12.5px;color:var(--muted);margin-top:8px">${call.method}</p>`;
+})();
+</script>
+</body>
+</html>
