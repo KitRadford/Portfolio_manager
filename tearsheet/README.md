@@ -32,8 +32,8 @@ Options:
 - `--out <path>` — output location (default `tearsheet/output/<TICKER>.html`)
 
 Dependencies: `yfinance` (already in the skill's requirements) for prices and news; SEC
-EDGAR is plain HTTPS. **Set your contact email in `EDGAR_UA` at the top of the script** —
-the SEC requires a real contact in the User-Agent header.
+EDGAR is plain HTTPS. The SEC requires a contact email in the User-Agent header — it is
+set in `EDGAR_UA` at the top of the script.
 
 ## The house call
 

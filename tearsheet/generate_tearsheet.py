@@ -33,7 +33,7 @@ TEMPLATE = HERE / "template.html"
 OUTPUT_DIR = HERE / "output"
 DATA_PLACEHOLDER = "__TEARSHEET_DATA__"
 
-EDGAR_UA = "PortfolioManager research tearsheet (contact: set-your-email@example.com)"
+EDGAR_UA = "PortfolioManager research tearsheet (contact: radfordkit@gmail.com)"
 
 # XBRL tags tried in order until one has data. Companies differ in which they file.
 EDGAR_CONCEPTS = {

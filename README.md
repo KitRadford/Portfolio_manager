@@ -75,8 +75,8 @@ further research. Look for the same direction across multiple timeframes.
 - Python 3.10+ (the skill creates its own venv on first run)
 - Network access to Yahoo Finance (OHLCV + news), HuggingFace (model weights, first run
   only), and SEC EDGAR (fundamentals)
-- Before fetching EDGAR data, set your contact email in `EDGAR_UA` at the top of
-  `tearsheet/generate_tearsheet.py` — the SEC requires a real contact in the User-Agent
+- SEC EDGAR requires a contact email in the User-Agent header — it is set in `EDGAR_UA`
+  at the top of `tearsheet/generate_tearsheet.py`
 
 ## Credits
 
